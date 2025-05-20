@@ -4,19 +4,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>InstaFB Video Downloader</title>
+  <title>InstaFB All-in-One Downloader</title>
   <style>
     body {
-      background: linear-gradient(to bottom, #1f2937, #000);
+      background: linear-gradient(to bottom, #0f172a, #000);
       color: white;
-      font-family: sans-serif;
+      font-family: 'Segoe UI', sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
+      padding: 20px;
       min-height: 100vh;
       margin: 0;
-      padding: 20px;
       text-align: center;
     }
     h1 {
@@ -26,62 +26,93 @@
     p {
       max-width: 600px;
       color: #ccc;
-      margin-bottom: 30px;
+      margin-bottom: 20px;
     }
-    input, button {
-      padding: 10px;
-      font-size: 1rem;
-      border: none;
-      border-radius: 8px;
-      margin: 5px;
+    .input-group {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 20px;
     }
     input {
+      padding: 10px;
+      font-size: 1rem;
+      border-radius: 10px;
+      border: none;
       width: 300px;
     }
     button {
-      background-color: #2563eb;
+      padding: 10px 15px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 10px;
+      background-color: #3b82f6;
       color: white;
       cursor: pointer;
     }
     button:hover {
-      background-color: #1d4ed8;
+      background-color: #2563eb;
     }
     .result {
-      background-color: #374151;
-      padding: 20px;
-      border-radius: 10px;
+      max-width: 700px;
       margin-top: 30px;
-      width: 100%;
-      max-width: 600px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .media-block {
+      background-color: #1e293b;
+      padding: 20px;
+      border-radius: 12px;
       text-align: left;
     }
-    .result h2 {
+    .media-block h3 {
       margin-top: 0;
     }
-    .download-link {
+    .media-preview {
+      max-width: 100%;
+      margin-top: 10px;
+      border-radius: 10px;
+    }
+    a.download-link {
+      display: inline-block;
+      margin-top: 10px;
       color: #60a5fa;
       text-decoration: none;
+      font-weight: bold;
     }
-    .download-link:hover {
+    a.download-link:hover {
       text-decoration: underline;
     }
   </style>
 </head>
 <body>
-  <h1>InstaFB Video Downloader</h1>
-  <p>Download Facebook and Instagram videos in HD. Just paste the video link below and click download.</p>
-  <div>
-    <input type="text" id="videoUrl" placeholder="Paste video link..." />
+  <h1>InstaFB All-in-One Downloader</h1>
+  <p>Download any type of content from Instagram and Facebook — videos, photos, reels, stories, and albums.</p>
+  <div class="input-group">
+    <input type="text" id="videoUrl" placeholder="Paste link here..." />
+    <button onclick="pasteLink()">Paste</button>
     <button onclick="downloadVideo()">Download</button>
   </div>
-  <div id="result" class="result" style="display:none;"></div>
+  <div id="result" class="result"></div>
 
   <script>
+    async function pasteLink() {
+      try {
+        const text = await navigator.clipboard.readText();
+        document.getElementById("videoUrl").value = text;
+      } catch (err) {
+        alert("Could not paste from clipboard.");
+      }
+    }
+
     async function downloadVideo() {
-      const url = document.getElementById("videoUrl").value;
+      const url = document.getElementById("videoUrl").value.trim();
       const resultDiv = document.getElementById("result");
-      resultDiv.style.display = "none";
-      if (!url) return alert("Please enter a video URL");
+      resultDiv.innerHTML = "";
+      if (!url) return alert("Please enter a video or post URL");
 
       try {
         const res = await fetch("http://localhost:5000/download", {
@@ -93,14 +124,35 @@
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
-        let output = `<h2>${data.title}</h2>`;
-        data.formats.forEach(f => {
-          output += `<a href="${f.url}" target="_blank" class="download-link">${f.quality} (${f.ext}) Download</a><br>`;
-        });
-        resultDiv.innerHTML = output;
-        resultDiv.style.display = "block";
+        if (data.album && Array.isArray(data.media)) {
+          data.media.forEach((item, index) => {
+            const block = document.createElement("div");
+            block.className = "media-block";
+            block.innerHTML = `<h3>Post ${index + 1}: ${item.title}</h3>`;
+            const preview = item.formats.find(f => f.url.includes(".jpg") || f.url.includes(".mp4"));
+            if (preview && preview.url.includes(".jpg")) {
+              block.innerHTML += `<img src="${preview.url}" class="media-preview" alt="Image preview" />`;
+            }
+            item.formats.forEach(f => {
+              block.innerHTML += `<br><a href="${f.url}" target="_blank" class="download-link">${f.quality || "Media"} (${f.ext})</a>`;
+            });
+            resultDiv.appendChild(block);
+          });
+        } else {
+          const block = document.createElement("div");
+          block.className = "media-block";
+          block.innerHTML = `<h3>${data.title}</h3>`;
+          const preview = data.formats.find(f => f.url.includes(".jpg") || f.url.includes(".mp4"));
+          if (preview && preview.url.includes(".jpg")) {
+            block.innerHTML += `<img src="${preview.url}" class="media-preview" alt="Preview" />`;
+          }
+          data.formats.forEach(f => {
+            block.innerHTML += `<br><a href="${f.url}" target="_blank" class="download-link">${f.quality || "Media"} (${f.ext})</a>`;
+          });
+          resultDiv.appendChild(block);
+        }
       } catch (err) {
-        alert("Failed to download video. Please check the link or try again later.");
+        alert("Something went wrong. Please try again.");
         console.error(err);
       }
     }
